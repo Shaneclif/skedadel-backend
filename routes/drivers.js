@@ -3,7 +3,20 @@ const router = express.Router();
 const Driver = require('../models/Driver');
 const bcrypt = require('bcrypt');
 
-// Get all drivers (admin use)
+// ✅ 1. Live driver locations for admin map (put this FIRST)
+router.get('/locations', async (req, res) => {
+  try {
+    const drivers = await Driver.find({
+      'location.lat': { $exists: true },
+      'location.lng': { $exists: true }
+    }).select('name location vehicleType');
+    res.json(drivers);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch locations" });
+  }
+});
+
+// ✅ 2. Get all drivers (admin use)
 router.get('/', async (req, res) => {
   try {
     const drivers = await Driver.find().select('-password');
@@ -13,7 +26,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get single driver by ID
+// ✅ 3. Get single driver by ID
 router.get('/:id', async (req, res) => {
   try {
     const driver = await Driver.findById(req.params.id).select('-password');
@@ -24,7 +37,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Update driver location (manual location update - not used for live tracking)
+// ✅ 4. Manual location update
 router.put('/:id/location', async (req, res) => {
   const { lat, lng } = req.body;
   try {
@@ -39,12 +52,10 @@ router.put('/:id/location', async (req, res) => {
   }
 });
 
-// Create new driver with hashed password
+// ✅ 5. Register new driver
 router.post('/', async (req, res) => {
   try {
-    console.log("Incoming driver data:", req.body);
     const { username, name, phone, email, password, vehicleType, isActive } = req.body;
-
     if (!username || !email || !password || !name || !phone) {
       return res.status(400).json({ message: "Missing required fields" });
     }
@@ -55,7 +66,6 @@ router.post('/', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const newDriver = new Driver({
       username,
       name,
@@ -69,17 +79,15 @@ router.post('/', async (req, res) => {
     await newDriver.save();
     res.status(201).json({ message: "Driver created successfully" });
   } catch (err) {
-    console.error("❌ Error creating driver:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
-// Driver login route
+// ✅ 6. Driver login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const driver = await Driver.findOne({ email });
-
     if (!driver) return res.status(404).json({ message: "Driver not found" });
 
     const isMatch = await bcrypt.compare(password, driver.password);
@@ -87,16 +95,14 @@ router.post('/login', async (req, res) => {
 
     res.status(200).json({ message: "Login successful", driverId: driver._id });
   } catch (err) {
-    console.error("❌ Login error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// 🔴 Live location tracking endpoint
+// ✅ 7. Live location tracking (driver app)
 router.post('/location', async (req, res) => {
   try {
     const { driverId, latitude, longitude, timestamp } = req.body;
-
     if (!driverId || !latitude || !longitude) {
       return res.status(400).json({ message: "Missing location data" });
     }
@@ -117,23 +123,8 @@ router.post('/location', async (req, res) => {
 
     res.json({ success: true, message: "Location updated", location: driver.location });
   } catch (err) {
-    console.error("❌ Location update error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
-// Get all driver locations (admin map)
-router.get('/locations', async (req, res) => {
-  try {
-    const drivers = await Driver.find({
-      'location.lat': { $exists: true },
-      'location.lng': { $exists: true }
-    }).select('name location vehicleType');
-
-    res.json(drivers);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch locations" });
-  }
-});
-
 
 module.exports = router;
