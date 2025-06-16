@@ -10,7 +10,15 @@ router.get('/locations', async (req, res) => {
       'location.lat': { $exists: true },
       'location.lng': { $exists: true }
     }).select('name phone location vehicleType taskCount online');
-    res.json(drivers);
+    
+    // Ensure taskCount is defaulted if missing
+    const processedDrivers = drivers.map(driver => ({
+      ...driver._doc,
+      taskCount: driver.taskCount || 0,
+      online: driver.online || false
+    }));
+
+    res.json(processedDrivers);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch locations" });
   }
@@ -76,7 +84,9 @@ router.post('/', async (req, res) => {
       email,
       password: hashedPassword,
       vehicleType,
-      isActive: isActive !== undefined ? isActive : true
+      isActive: isActive !== undefined ? isActive : true,
+      taskCount: 0,
+      online: false
     });
 
     await newDriver.save();
