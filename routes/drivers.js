@@ -9,7 +9,7 @@ router.get('/locations', async (req, res) => {
     const drivers = await Driver.find({
       'location.lat': { $exists: true },
       'location.lng': { $exists: true }
-    }).select('name location vehicleType');
+    }).select('name phone location vehicleType taskCount online');
     res.json(drivers);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch locations" });
@@ -43,7 +43,10 @@ router.put('/:id/location', async (req, res) => {
   try {
     const driver = await Driver.findByIdAndUpdate(
       req.params.id,
-      { location: { lat, lng, lastUpdated: new Date() } },
+      {
+        location: { lat, lng, lastUpdated: new Date() },
+        online: true
+      },
       { new: true }
     );
     res.json(driver);
@@ -114,7 +117,8 @@ router.post('/location', async (req, res) => {
           lat: latitude,
           lng: longitude,
           lastUpdated: timestamp || new Date()
-        }
+        },
+        online: true
       },
       { new: true }
     );
@@ -124,6 +128,23 @@ router.post('/location', async (req, res) => {
     res.json({ success: true, message: "Location updated", location: driver.location });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// ✅ 8. Mark driver offline manually
+router.post('/offline', async (req, res) => {
+  try {
+    const { driverId } = req.body;
+    if (!driverId) {
+      return res.status(400).json({ message: "Missing driverId" });
+    }
+
+    const driver = await Driver.findByIdAndUpdate(driverId, { online: false }, { new: true });
+    if (!driver) return res.status(404).json({ message: "Driver not found" });
+
+    res.json({ success: true, message: "Driver marked offline" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
   }
 });
 
