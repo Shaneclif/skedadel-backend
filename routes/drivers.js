@@ -3,15 +3,15 @@ const router = express.Router();
 const Driver = require('../models/Driver');
 const bcrypt = require('bcrypt');
 
-// ✅ 1. Live driver locations for admin map (put this FIRST)
+// ✅ 1. Live driver locations for admin map
 router.get('/locations', async (req, res) => {
   try {
     const drivers = await Driver.find({
       'location.lat': { $exists: true },
       'location.lng': { $exists: true }
     }).select('name phone location vehicleType taskCount online');
-    
-    // Ensure taskCount is defaulted if missing
+
+    // Normalize missing fields
     const processedDrivers = drivers.map(driver => ({
       ...driver._doc,
       taskCount: driver.taskCount || 0,
@@ -24,7 +24,7 @@ router.get('/locations', async (req, res) => {
   }
 });
 
-// ✅ 2. Get all drivers (admin use)
+// ✅ 2. Get all drivers
 router.get('/', async (req, res) => {
   try {
     const drivers = await Driver.find().select('-password');
@@ -112,7 +112,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ✅ 7. Live location tracking (driver app)
+// ✅ 7. Location tracking (driver app)
 router.post('/location', async (req, res) => {
   try {
     const { driverId, latitude, longitude, timestamp } = req.body;
@@ -141,7 +141,7 @@ router.post('/location', async (req, res) => {
   }
 });
 
-// ✅ 8. Mark driver offline manually
+// ✅ 8. Manually mark driver offline
 router.post('/offline', async (req, res) => {
   try {
     const { driverId } = req.body;
@@ -153,6 +153,30 @@ router.post('/offline', async (req, res) => {
     if (!driver) return res.status(404).json({ message: "Driver not found" });
 
     res.json({ success: true, message: "Driver marked offline" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ✅ 9. Toggle online/offline status from app
+router.post('/status', async (req, res) => {
+  try {
+    const { driverId, status } = req.body;
+    if (!driverId || !status) {
+      return res.status(400).json({ message: "Missing driverId or status" });
+    }
+
+    const isOnline = status.toLowerCase() === 'online';
+
+    const driver = await Driver.findByIdAndUpdate(
+      driverId,
+      { online: isOnline },
+      { new: true }
+    );
+
+    if (!driver) return res.status(404).json({ message: "Driver not found" });
+
+    res.json({ success: true, online: driver.online });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
