@@ -48,6 +48,10 @@ const DriverSchema = new mongoose.Schema({
     lat: Number,
     lng: Number,
     lastUpdated: Date
+  },
+  online: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
