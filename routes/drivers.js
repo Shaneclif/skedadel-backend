@@ -111,7 +111,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// 7. Unified tracking + status route
+// 7. Unified tracking + status + location
 router.post('/status', async (req, res) => {
   try {
     const { driverId, status, latitude, longitude, timestamp } = req.body;
@@ -130,7 +130,7 @@ router.post('/status', async (req, res) => {
         lastUpdated: timestamp || new Date()
       };
     } else if (status.toLowerCase() === 'offline') {
-      update.location = null; // Clear GPS on offline
+      update.location = null;
     }
 
     const driver = await Driver.findByIdAndUpdate(driverId, update, { new: true });
@@ -139,6 +139,20 @@ router.post('/status', async (req, res) => {
     res.json({ success: true, online: driver.online });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ✅ 8. PATCH /drivers/:id/status - Update status only
+router.patch('/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { online } = req.body;
+
+  try {
+    const driver = await Driver.findByIdAndUpdate(id, { online }, { new: true });
+    if (!driver) return res.status(404).json({ message: "Driver not found" });
+    res.json({ success: true, online: driver.online });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update driver status" });
   }
 });
 
