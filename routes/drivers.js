@@ -3,7 +3,7 @@ const router = express.Router();
 const Driver = require('../models/Driver');
 const bcrypt = require('bcrypt');
 
-// ✅ 1. Live driver locations for admin map
+// 1. Live driver locations for admin map
 router.get('/locations', async (req, res) => {
   try {
     const drivers = await Driver.find({
@@ -11,20 +11,19 @@ router.get('/locations', async (req, res) => {
       'location.lng': { $exists: true }
     }).select('name phone location vehicleType taskCount online');
 
-    // Normalize missing fields
-    const processedDrivers = drivers.map(driver => ({
-      ...driver._doc,
-      taskCount: driver.taskCount || 0,
-      online: driver.online || false
+    const processed = drivers.map(d => ({
+      ...d._doc,
+      taskCount: d.taskCount || 0,
+      online: !!d.online
     }));
 
-    res.json(processedDrivers);
+    res.json(processed);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch locations" });
   }
 });
 
-// ✅ 2. Get all drivers
+// 2. Get all drivers
 router.get('/', async (req, res) => {
   try {
     const drivers = await Driver.find().select('-password');
@@ -34,7 +33,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ✅ 3. Get single driver by ID
+// 3. Get single driver
 router.get('/:id', async (req, res) => {
   try {
     const driver = await Driver.findById(req.params.id).select('-password');
@@ -45,7 +44,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ✅ 4. Manual location update
+// 4. Manual location update
 router.put('/:id/location', async (req, res) => {
   const { lat, lng } = req.body;
   try {
@@ -63,7 +62,7 @@ router.put('/:id/location', async (req, res) => {
   }
 });
 
-// ✅ 5. Register new driver
+// 5. Register new driver
 router.post('/', async (req, res) => {
   try {
     const { username, name, phone, email, password, vehicleType, isActive } = req.body;
@@ -96,7 +95,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ✅ 6. Driver login
+// 6. Driver login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -112,68 +111,29 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ✅ 7. Location tracking (driver app)
-router.post('/location', async (req, res) => {
-  try {
-    const { driverId, latitude, longitude, timestamp } = req.body;
-    if (!driverId || !latitude || !longitude) {
-      return res.status(400).json({ message: "Missing location data" });
-    }
-
-    const driver = await Driver.findByIdAndUpdate(
-      driverId,
-      {
-        location: {
-          lat: latitude,
-          lng: longitude,
-          lastUpdated: timestamp || new Date()
-        },
-        online: true
-      },
-      { new: true }
-    );
-
-    if (!driver) return res.status(404).json({ message: "Driver not found" });
-
-    res.json({ success: true, message: "Location updated", location: driver.location });
-  } catch (err) {
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-});
-
-// ✅ 8. Manually mark driver offline
-router.post('/offline', async (req, res) => {
-  try {
-    const { driverId } = req.body;
-    if (!driverId) {
-      return res.status(400).json({ message: "Missing driverId" });
-    }
-
-    const driver = await Driver.findByIdAndUpdate(driverId, { online: false }, { new: true });
-    if (!driver) return res.status(404).json({ message: "Driver not found" });
-
-    res.json({ success: true, message: "Driver marked offline" });
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-// ✅ 9. Toggle online/offline status from app
+// 7. Unified tracking + status route
 router.post('/status', async (req, res) => {
   try {
-    const { driverId, status } = req.body;
+    const { driverId, status, latitude, longitude, timestamp } = req.body;
     if (!driverId || !status) {
       return res.status(400).json({ message: "Missing driverId or status" });
     }
 
-    const isOnline = status.toLowerCase() === 'online';
+    const update = {
+      online: status.toLowerCase() === 'online'
+    };
 
-    const driver = await Driver.findByIdAndUpdate(
-      driverId,
-      { online: isOnline },
-      { new: true }
-    );
+    if (latitude && longitude) {
+      update.location = {
+        lat: latitude,
+        lng: longitude,
+        lastUpdated: timestamp || new Date()
+      };
+    } else if (status.toLowerCase() === 'offline') {
+      update.location = null; // Clear GPS on offline
+    }
 
+    const driver = await Driver.findByIdAndUpdate(driverId, update, { new: true });
     if (!driver) return res.status(404).json({ message: "Driver not found" });
 
     res.json({ success: true, online: driver.online });
