@@ -3,10 +3,23 @@ const router = express.Router();
 const Order = require('../models/Order');
 const Driver = require('../models/Driver');
 
-// Create a new order
+// ✅ Create a new order and auto-assign to an online driver
 router.post('/', async (req, res) => {
   try {
-    const order = new Order(req.body);
+    // Find first available online driver
+    const onlineDriver = await Driver.findOne({ online: true });
+
+    if (!onlineDriver) {
+      return res.status(400).json({ error: 'No online driver available right now' });
+    }
+
+    // Attach driver and status to order
+    const order = new Order({
+      ...req.body,
+      assignedDriver: onlineDriver._id,
+      status: 'assigned',
+    });
+
     await order.save();
     res.status(201).json(order);
   } catch (err) {
@@ -24,7 +37,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Assign an order to a driver
+// Manually assign order to a driver
 router.put('/:id/assign', async (req, res) => {
   const { driverId } = req.body;
   try {
@@ -39,7 +52,7 @@ router.put('/:id/assign', async (req, res) => {
   }
 });
 
-// Update order status (driver use)
+// Update order status (e.g. picked up, delivered)
 router.put('/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
