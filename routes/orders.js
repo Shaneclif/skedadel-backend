@@ -6,6 +6,9 @@ const Driver = require('../models/Driver');
 // ✅ Create a new order and auto-assign to an online driver
 router.post('/', async (req, res) => {
   try {
+    const io = req.app.get('io');                      // get io instance from app
+    const connectedDrivers = req.app.get('connectedDrivers'); // get map of driverId => socketId
+
     // Find first available online driver
     const onlineDriver = await Driver.findOne({ online: true });
 
@@ -13,7 +16,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'No online driver available right now' });
     }
 
-    // Attach driver and status to order
+    // Create new order
     const order = new Order({
       ...req.body,
       assignedDriver: onlineDriver._id,
@@ -21,13 +24,27 @@ router.post('/', async (req, res) => {
     });
 
     await order.save();
+
+    // Emit new order to driver if they're connected
+    const driverSocketId = connectedDrivers.get(onlineDriver._id.toString());
+    if (driverSocketId) {
+      io.to(driverSocketId).emit('newOrder', {
+        orderId: order._id,
+        pickup: order.pickupAddress,
+        delivery: order.deliveryAddress,
+        items: order.items,
+        note: order.note || '',
+      });
+      console.log(`📦 Order ${order._id} pushed to driver ${onlineDriver._id}`);
+    }
+
     res.status(201).json(order);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// Get all orders (admin use)
+// ✅ Get all orders (admin use)
 router.get('/', async (req, res) => {
   try {
     const orders = await Order.find().populate('assignedDriver', '-password');
@@ -37,7 +54,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Manually assign order to a driver
+// ✅ Manually assign an order to a driver
 router.put('/:id/assign', async (req, res) => {
   const { driverId } = req.body;
   try {
@@ -52,7 +69,7 @@ router.put('/:id/assign', async (req, res) => {
   }
 });
 
-// Update order status (e.g. picked up, delivered)
+// ✅ Update order status
 router.put('/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
