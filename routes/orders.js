@@ -6,7 +6,7 @@ const Driver = require('../models/Driver');
 // ✅ Create a new order and auto-assign to an online driver
 router.post('/', async (req, res) => {
   try {
-    const io = req.app.get('io');                      // get io instance from app
+    const io = req.app.get('io'); // get io instance from app
     const connectedDrivers = req.app.get('connectedDrivers'); // get map of driverId => socketId
 
     // Find first available online driver
