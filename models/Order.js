@@ -3,8 +3,14 @@ const mongoose = require('mongoose');
 const OrderSchema = new mongoose.Schema({
   customerName: String,
   customerPhone: String,
+  restaurant: String, // e.g. KFC Sandton
   pickupAddress: String,
+  pickupLat: Number,
+  pickupLng: Number,
   dropoffAddress: String,
+  deliveryLat: Number,
+  deliveryLng: Number,
+  note: String, // optional instructions
   status: {
     type: String,
     enum: ['pending', 'assigned', 'in_progress', 'completed', 'cancelled'],

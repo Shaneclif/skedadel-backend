@@ -9,6 +9,21 @@ router.post('/', async (req, res) => {
     const io = req.app.get('io');
     const connectedDrivers = req.app.get('connectedDrivers');
 
+    console.log("📨 New order request:", req.body);
+
+    // Validate required fields
+    const {
+      pickupLat,
+      pickupLng,
+      deliveryLat,
+      deliveryLng,
+      restaurant
+    } = req.body;
+
+    if (!pickupLat || !pickupLng || !deliveryLat || !deliveryLng) {
+      return res.status(400).json({ error: 'Missing pickup/delivery coordinates' });
+    }
+
     // Find first available online driver
     const onlineDriver = await Driver.findOne({ online: true });
 
