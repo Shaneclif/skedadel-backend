@@ -6,8 +6,8 @@ const Driver = require('../models/Driver');
 // ✅ Create a new order and auto-assign to an online driver
 router.post('/', async (req, res) => {
   try {
-    const io = req.app.get('io'); // get io instance from app
-    const connectedDrivers = req.app.get('connectedDrivers'); // get map of driverId => socketId
+    const io = req.app.get('io');
+    const connectedDrivers = req.app.get('connectedDrivers');
 
     // Find first available online driver
     const onlineDriver = await Driver.findOne({ online: true });
@@ -25,21 +25,21 @@ router.post('/', async (req, res) => {
 
     await order.save();
 
-    // Emit new order to driver if they're connected
+    // 🔄 Populate the assignedDriver before sending to client
+    const fullOrder = await Order.findById(order._id).populate('assignedDriver', '-password');
+
+    // 🎯 Emit full order to connected driver
     const driverSocketId = connectedDrivers.get(onlineDriver._id.toString());
     if (driverSocketId) {
-      io.to(driverSocketId).emit('newOrder', {
-        orderId: order._id,
-        pickup: order.pickupAddress,
-        delivery: order.deliveryAddress,
-        items: order.items,
-        note: order.note || '',
-      });
-      console.log(`📦 Order ${order._id} pushed to driver ${onlineDriver._id}`);
+      io.to(driverSocketId).emit('newOrder', fullOrder);
+      console.log(`📦 Order ${order._id} emitted to driver ${onlineDriver._id} via socket`);
+    } else {
+      console.log(`⚠️ Driver ${onlineDriver._id} is not connected via socket`);
     }
 
-    res.status(201).json(order);
+    res.status(201).json(fullOrder);
   } catch (err) {
+    console.error("❌ Error creating order:", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -62,7 +62,17 @@ router.put('/:id/assign', async (req, res) => {
       req.params.id,
       { assignedDriver: driverId, status: 'assigned' },
       { new: true }
-    );
+    ).populate('assignedDriver', '-password');
+
+    // Send order update to driver if connected
+    const io = req.app.get('io');
+    const connectedDrivers = req.app.get('connectedDrivers');
+    const socketId = connectedDrivers.get(driverId);
+    if (socketId) {
+      io.to(socketId).emit('newOrder', order);
+      console.log(`📦 Order ${order._id} manually assigned and emitted to ${driverId}`);
+    }
+
     res.json(order);
   } catch (err) {
     res.status(500).json({ error: err.message });
